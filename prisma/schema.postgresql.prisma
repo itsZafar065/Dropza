@@ -1,0 +1,185 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum FileStatus {
+  UPLOAD_PENDING
+  UPLOAD_COMPLETED
+  FAILED
+  DELETED
+}
+
+enum RoomStatus {
+  WAITING
+  CONNECTED
+  COMPLETED
+  EXPIRED
+  TERMINATED
+}
+
+enum AbuseReportStatus {
+  PENDING
+  REVIEWED
+  ACTION_TAKEN
+  DISMISSED
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String
+  name         String?
+  role         Role         @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  files        FileAsset[]
+  shareLinks   ShareLink[]
+  textShares   TextShare[]
+
+  @@map("users")
+}
+
+model FileAsset {
+  id             String       @id @default(uuid())
+  originalName   String
+  sanitizedName  String
+  mimeType       String
+  sizeBytes      BigInt
+  storageKey     String       @unique
+  storageBucket  String
+  status         FileStatus   @default(UPLOAD_PENDING)
+  checksumSha256 String?
+  userId         String?
+  guestSessionId String?
+  expiresAt      DateTime?
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shareLinks     ShareLink[]
+  downloadEvents DownloadEvent[]
+  abuseReports   AbuseReport[]
+
+  @@index([userId])
+  @@index([guestSessionId])
+  @@index([expiresAt])
+  @@index([status])
+  @@map("file_assets")
+}
+
+model ShareLink {
+  id             String         @id @default(uuid())
+  token          String         @unique
+  tokenHash      String         @unique
+  fileAssetId    String
+  userId         String?
+  guestSessionId String?
+  passwordHash   String?
+  maxDownloads   Int?
+  downloadCount  Int            @default(0)
+  expiresAt      DateTime
+  isRevoked      Boolean        @default(false)
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  fileAsset      FileAsset      @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  downloadEvents DownloadEvent[]
+  abuseReports   AbuseReport[]
+
+  @@index([tokenHash])
+  @@index([fileAssetId])
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("share_links")
+}
+
+model TransferRoom {
+  id          String     @id @default(uuid())
+  roomCode    String     @unique
+  pinHash     String?
+  hostPeerId  String
+  status      RoomStatus @default(WAITING)
+  expiresAt   DateTime
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([roomCode])
+  @@index([expiresAt])
+  @@map("transfer_rooms")
+}
+
+model TextShare {
+  id             String         @id @default(uuid())
+  token          String         @unique
+  content        String
+  isUrl          Boolean        @default(false)
+  previewTitle   String?
+  previewDesc    String?
+  userId         String?
+  guestSessionId String?
+  passwordHash   String?
+  viewCount      Int            @default(0)
+  maxViews       Int?
+  expiresAt      DateTime
+  isRevoked      Boolean        @default(false)
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  abuseReports   AbuseReport[]
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("text_shares")
+}
+
+model DownloadEvent {
+  id           String     @id @default(uuid())
+  shareLinkId  String?
+  fileAssetId  String?
+  ipHash       String
+  userAgent    String?
+  downloadedAt DateTime   @default(now())
+
+  shareLink    ShareLink? @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
+  fileAsset    FileAsset? @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+
+  @@index([shareLinkId])
+  @@index([downloadedAt])
+  @@map("download_events")
+}
+
+model AbuseReport {
+  id             String            @id @default(uuid())
+  shareLinkId    String?
+  fileAssetId    String?
+  textShareId    String?
+  reporterIpHash String
+  reason         String
+  details        String?
+  status         AbuseReportStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  shareLink      ShareLink?        @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
+  fileAsset      FileAsset?        @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+  textShare      TextShare?        @relation(fields: [textShareId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("abuse_reports")
+}
