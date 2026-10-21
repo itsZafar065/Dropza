@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -7,12 +7,39 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum FileStatus {
+  UPLOAD_PENDING
+  UPLOAD_COMPLETED
+  FAILED
+  DELETED
+}
+
+enum RoomStatus {
+  WAITING
+  CONNECTED
+  COMPLETED
+  EXPIRED
+  TERMINATED
+}
+
+enum AbuseReportStatus {
+  PENDING
+  REVIEWED
+  ACTION_TAKEN
+  DISMISSED
+}
+
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
   passwordHash String
   name         String?
-  role         String       @default("USER") // USER, ADMIN
+  role         Role         @default(USER)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -31,7 +58,7 @@ model FileAsset {
   sizeBytes      BigInt
   storageKey     String       @unique
   storageBucket  String
-  status         String       @default("UPLOAD_PENDING") // UPLOAD_PENDING, UPLOAD_COMPLETED, FAILED, DELETED
+  status         FileStatus   @default(UPLOAD_PENDING)
   checksumSha256 String?
   userId         String?
   guestSessionId String?
@@ -85,7 +112,7 @@ model TransferRoom {
   roomCode    String     @unique
   pinHash     String?
   hostPeerId  String
-  status      String     @default("WAITING") // WAITING, CONNECTED, COMPLETED, EXPIRED, TERMINATED
+  status      RoomStatus @default(WAITING)
   expiresAt   DateTime
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -145,7 +172,7 @@ model AbuseReport {
   reporterIpHash String
   reason         String
   details        String?
-  status         String            @default("PENDING") // PENDING, REVIEWED, ACTION_TAKEN, DISMISSED
+  status         AbuseReportStatus @default(PENDING)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
