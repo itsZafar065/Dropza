@@ -258,12 +258,20 @@ export default function ShareLinkPage() {
               {fileData?.previewUrl && !requiresPassword && (
                 <div className="rounded-2xl overflow-hidden border border-[#DCE8DE] dark:border-[#1D3325] bg-[#EFF6F0]/40 dark:bg-[#0B120E] flex items-center justify-center p-3 sm:p-4">
                   {fileData.mimeType?.startsWith("image/") ? (
-                    <img
-                      src={fileData.previewUrl}
-                      alt={fileData.name}
-                      className="max-h-80 sm:max-h-96 w-auto max-w-full rounded-xl object-contain shadow-sm"
-                      loading="eager"
-                    />
+                    <a
+                      href={fileData.previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block cursor-zoom-in"
+                      title="Click to view full image in high resolution"
+                    >
+                      <img
+                        src={fileData.previewUrl}
+                        alt={fileData.name}
+                        className="max-h-80 sm:max-h-96 w-auto max-w-full rounded-xl object-contain shadow-sm hover:opacity-95 transition-opacity"
+                        loading="eager"
+                      />
+                    </a>
                   ) : fileData.mimeType?.startsWith("video/") ? (
                     <video controls className="max-h-80 sm:max-h-96 w-full rounded-xl">
                       <source src={fileData.previewUrl} type={fileData.mimeType} />

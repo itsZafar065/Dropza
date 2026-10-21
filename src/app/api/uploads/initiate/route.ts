@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { initiateUploadSchema, BLOCKED_EXTENSIONS } from "@/lib/validations";
-import { generateSecureToken, hashToken, hashPassword } from "@/lib/crypto";
+import { generateSecureToken, hashToken, hashPassword, hashIp } from "@/lib/crypto";
 import { getPresignedUploadUrl, generateStorageKey } from "@/lib/s3";
 import { sanitizeFilename } from "@/lib/utils";
 import { rateLimiter, getClientIp } from "@/lib/ratelimit";
@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
 
     const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
     const passwordHash = password && password.trim().length > 0 ? await hashPassword(password) : null;
-    const guestSessionId = !userId ? req.headers.get("x-guest-session") || generateSecureToken(16) : null;
+    const networkId = hashIp(ip);
+    const guestSessionId = !userId ? (req.headers.get("x-guest-session") || networkId) : networkId;
 
     const results = [];
 

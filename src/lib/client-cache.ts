@@ -21,6 +21,7 @@ export interface RecentShareItem {
   shareUrl: string;
   token: string;
   expiresAt?: string;
+  previewUrl?: string;
   completedAt: number;
 }
 
@@ -158,6 +159,7 @@ export async function saveRecentShare(item: {
   shareUrl: string;
   token: string;
   expiresAt?: string;
+  previewUrl?: string;
 }): Promise<void> {
   const db = await openDB();
   if (!db) return;
@@ -174,6 +176,7 @@ export async function saveRecentShare(item: {
         shareUrl: item.shareUrl,
         token: item.token,
         expiresAt: item.expiresAt,
+        previewUrl: item.previewUrl,
         completedAt: Date.now(),
       });
       tx.oncomplete = () => resolve();
