@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import prisma from "../../src/lib/prisma";
-import { getPresignedUploadUrl, getPresignedDownloadUrl, verifyObjectExists, getLocalFilePath } from "../../src/lib/s3";
+import {
+  getPresignedUploadUrl,
+  getPresignedDownloadUrl,
+  verifyObjectExists,
+  getLocalFilePath,
+  isS3Configured,
+  deleteObject,
+} from "../../src/lib/s3";
 import fs from "fs";
 
 describe("E2E API Data & Storage Lifecycle", () => {
@@ -15,7 +22,16 @@ describe("E2E API Data & Storage Lifecycle", () => {
 
     // 2. Perform upload
     const localTarget = getLocalFilePath(storageKey);
-    fs.writeFileSync(localTarget, testBuffer);
+    if (isS3Configured) {
+      const uploadRes = await fetch(presignedUpload.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "text/plain" },
+        body: testBuffer,
+      });
+      expect(uploadRes.ok).toBe(true);
+    } else {
+      fs.writeFileSync(localTarget, testBuffer);
+    }
 
     // 3. Verify object exists
     const check = await verifyObjectExists(storageKey);
@@ -30,7 +46,7 @@ describe("E2E API Data & Storage Lifecycle", () => {
         mimeType: "text/plain",
         sizeBytes: BigInt(check.sizeBytes),
         storageKey,
-        storageBucket: "dropza-files",
+        storageBucket: process.env.S3_BUCKET || "dropza-files",
         status: "UPLOAD_COMPLETED",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
@@ -47,12 +63,23 @@ describe("E2E API Data & Storage Lifecycle", () => {
 
     // 5. Generate presigned download URL
     const downloadUrl = await getPresignedDownloadUrl(storageKey, "e2e-file.txt");
-    expect(downloadUrl).toContain("sig=");
-    expect(downloadUrl).toContain("exp=");
+    if (isS3Configured) {
+      expect(downloadUrl).toContain("X-Amz-Signature");
+    } else {
+      expect(downloadUrl).toContain("sig=");
+      expect(downloadUrl).toContain("exp=");
+    }
 
     // 6. Read and verify downloaded bytes
-    const readOnDisk = fs.readFileSync(localTarget, "utf-8");
-    expect(readOnDisk).toBe(testContent);
+    if (isS3Configured) {
+      const dlRes = await fetch(downloadUrl);
+      expect(dlRes.ok).toBe(true);
+      const text = await dlRes.text();
+      expect(text).toBe(testContent);
+    } else {
+      const readOnDisk = fs.readFileSync(localTarget, "utf-8");
+      expect(readOnDisk).toBe(testContent);
+    }
 
     // 7. Revoke share link
     await prisma.shareLink.update({
@@ -66,8 +93,12 @@ describe("E2E API Data & Storage Lifecycle", () => {
     expect(revokedCheck?.isRevoked).toBe(true);
 
     // Cleanup
-    if (fs.existsSync(localTarget)) fs.unlinkSync(localTarget);
+    if (isS3Configured) {
+      await deleteObject(storageKey);
+    } else {
+      if (fs.existsSync(localTarget)) fs.unlinkSync(localTarget);
+    }
     await prisma.shareLink.delete({ where: { id: share.id } });
     await prisma.fileAsset.delete({ where: { id: asset.id } });
-  });
+  }, 30000);
 });
