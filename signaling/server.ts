@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { RoomManager } from "./room-manager";
 import { SignalingMessage } from "./types";
 
-const PORT = parseInt(process.env.SIGNALING_PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || process.env.SIGNALING_PORT || "3001", 10);
 const configuredOrigins = (process.env.SIGNALING_ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
   .split(",")
   .map((s) => s.trim());

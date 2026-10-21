@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { deleteObject } from "@/lib/s3";
 
-export async function POST(req: NextRequest) {
+async function executeCleanup(req: NextRequest) {
   try {
     // Verify optional cron secret if configured
     const cronSecret = process.env.CRON_SECRET;
@@ -80,4 +80,14 @@ export async function POST(req: NextRequest) {
     console.error("Cleanup cron error:", err);
     return NextResponse.json({ error: "Internal server error during cleanup" }, { status: 500 });
   }
+}
+
+// Vercel Cron sends GET requests
+export async function GET(req: NextRequest) {
+  return executeCleanup(req);
+}
+
+// Support manual or webhook triggers via POST
+export async function POST(req: NextRequest) {
+  return executeCleanup(req);
 }
