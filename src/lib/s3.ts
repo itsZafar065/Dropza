@@ -154,6 +154,34 @@ export async function getPresignedDownloadUrl(
 }
 
 /**
+ * Generate short-lived presigned URL for inline preview of an image, video or PDF
+ * Lifetime: 15 minutes (900 seconds)
+ */
+export async function getPresignedPreviewUrl(
+  storageKey: string,
+  contentType: string,
+  expiresInSeconds: number = 900,
+  baseOrigin?: string
+): Promise<string> {
+  if (!isS3Configured || !s3Client) {
+    const origin = (baseOrigin || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+    const base = origin || "";
+    const expiresAt = Date.now() + expiresInSeconds * 1000;
+    const sig = generateLocalSignedToken("get", storageKey, expiresAt);
+    return `${base}/api/storage/local?key=${encodeURIComponent(storageKey)}&exp=${expiresAt}&sig=${sig}`;
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: s3Bucket,
+    Key: storageKey,
+    ResponseContentType: contentType,
+    ResponseContentDisposition: "inline",
+  });
+
+  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+}
+
+/**
  * Verify if object exists in storage and return its actual byte size
  */
 export async function verifyObjectExists(

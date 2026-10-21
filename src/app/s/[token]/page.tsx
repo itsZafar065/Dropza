@@ -83,6 +83,7 @@ export default function ShareLinkPage() {
         expiresAt: data.expiresAt,
         downloadCount: data.downloadCount,
         maxDownloads: data.maxDownloads,
+        previewUrl: data.previewUrl || null,
       });
     } catch {
       setError("Unable to connect to Dropza servers");
@@ -100,31 +101,44 @@ export default function ShareLinkPage() {
   const triggerDownload = async () => {
     setDownloading(true);
     try {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       if (passwordInput) headers["x-share-password"] = passwordInput;
 
-      const res = await fetch(`/api/share/${token}/download`, { headers });
+      const res = await fetch(`/api/share/${token}/download`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ password: passwordInput || undefined }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error("Download failed", data.error);
+        toast.error("Download failed", data.error || "Unable to download file");
         setDownloading(false);
         return;
       }
 
-      const a = document.createElement("a");
-      a.href = data.downloadUrl;
-      a.download = data.fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      if (data.downloadUrl) {
+        const a = document.createElement("a");
+        a.href = data.downloadUrl;
+        a.download = data.fileName;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 150);
 
-      toast.success("Download started!");
-      if (fileData) {
-        setFileData({ ...fileData, downloadCount: (fileData.downloadCount || 0) + 1 });
+        toast.success("Download started!");
+        if (fileData) {
+          setFileData({ ...fileData, downloadCount: (fileData.downloadCount || 0) + 1 });
+        }
       }
-    } catch {
-      toast.error("Error initiating download");
+    } catch (err: any) {
+      console.error("Download error:", err);
+      toast.error("Error initiating download", err?.message || "Please try again");
     } finally {
       setDownloading(false);
     }
@@ -239,6 +253,25 @@ export default function ShareLinkPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Media Preview (Image / Video) */}
+              {fileData?.previewUrl && !requiresPassword && (
+                <div className="rounded-2xl overflow-hidden border border-[#DCE8DE] dark:border-[#1D3325] bg-[#EFF6F0]/40 dark:bg-[#0B120E] flex items-center justify-center p-3 sm:p-4">
+                  {fileData.mimeType?.startsWith("image/") ? (
+                    <img
+                      src={fileData.previewUrl}
+                      alt={fileData.name}
+                      className="max-h-80 sm:max-h-96 w-auto max-w-full rounded-xl object-contain shadow-sm"
+                      loading="eager"
+                    />
+                  ) : fileData.mimeType?.startsWith("video/") ? (
+                    <video controls className="max-h-80 sm:max-h-96 w-full rounded-xl">
+                      <source src={fileData.previewUrl} type={fileData.mimeType} />
+                      Your browser does not support video playback.
+                    </video>
+                  ) : null}
+                </div>
+              )}
 
               {/* Password prompt if required */}
               {requiresPassword ? (

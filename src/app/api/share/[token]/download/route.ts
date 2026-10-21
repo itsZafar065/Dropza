@@ -4,9 +4,9 @@ import { hashToken, verifyPassword, hashIp } from "@/lib/crypto";
 import { getPresignedDownloadUrl } from "@/lib/s3";
 import { rateLimiter, getClientIp } from "@/lib/ratelimit";
 
-export async function POST(
+async function processDownloadRequest(
   req: NextRequest,
-  { params }: { params: { token: string } }
+  token: string
 ) {
   try {
     const ip = getClientIp(req);
@@ -19,7 +19,6 @@ export async function POST(
       );
     }
 
-    const { token } = params;
     if (!token) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
     }
@@ -51,10 +50,15 @@ export async function POST(
     if (shareLink.passwordHash) {
       let pwd = "";
       try {
-        const body = await req.json();
-        pwd = body.password || "";
+        if (req.method === "POST") {
+          const body = await req.json();
+          pwd = body.password || "";
+        }
       } catch {
-        pwd = req.headers.get("x-share-password") || "";
+        pwd = "";
+      }
+      if (!pwd) {
+        pwd = req.headers.get("x-share-password") || req.nextUrl.searchParams.get("pwd") || "";
       }
 
       if (!pwd) {
@@ -127,4 +131,18 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { token: string } }
+) {
+  return processDownloadRequest(req, params.token);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { token: string } }
+) {
+  return processDownloadRequest(req, params.token);
 }

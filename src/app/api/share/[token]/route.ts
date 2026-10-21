@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hashToken, verifyPassword } from "@/lib/crypto";
+import { getPresignedPreviewUrl } from "@/lib/s3";
 import { rateLimiter, getClientIp } from "@/lib/ratelimit";
 
 export async function GET(
@@ -83,10 +84,27 @@ export async function GET(
       }
     }
 
+    const origin = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    let previewUrl: string | null = null;
+    const mime = shareLink.fileAsset.mimeType || "";
+    if (mime.startsWith("image/") || mime.startsWith("video/") || mime === "application/pdf") {
+      try {
+        previewUrl = await getPresignedPreviewUrl(
+          shareLink.fileAsset.storageKey,
+          mime,
+          900,
+          origin
+        );
+      } catch (e) {
+        console.error("Preview URL generation error:", e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       requiresPassword: false,
       token: shareLink.token,
+      previewUrl,
       file: {
         id: shareLink.fileAsset.id,
         name: shareLink.fileAsset.sanitizedName,
